@@ -1,0 +1,172 @@
+import pygame
+import random
+import sys
+
+pygame.init()
+
+# Screen settings
+WIDTH = 800
+HEIGHT = 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Endless Runner")
+
+clock = pygame.time.Clock()
+FPS = 60
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (200, 0, 0)
+GREEN = (0, 200, 0)
+BLUE = (0, 0, 200)
+GRAY = (100, 100, 100)
+
+# Player settings
+player_width = 50
+player_height = 80
+player_x = WIDTH // 2 - player_width // 2
+player_y = HEIGHT - player_height - 10
+player_speed = 10
+
+# Lane positions (3 lanes)
+lanes = [WIDTH // 4, WIDTH // 2, 3 * WIDTH // 4]
+current_lane = 1
+
+# Obstacle settings
+obstacle_width = 50
+obstacle_height = 80
+obstacle_speed = 5
+
+# Game variables
+score = 0
+font = pygame.font.SysFont("Arial", 30)
+game_over = False
+
+# Player jump
+is_jumping = False
+jump_velocity = 15
+gravity = 1
+y_velocity = 0
+
+# Obstacles list
+obstacles = []
+
+# Spawn timer
+spawn_timer = 0
+
+def draw_player(x, y):
+    pygame.draw.rect(screen, BLUE, (x, y, player_width, player_height))
+
+def draw_obstacle(obs):
+    pygame.draw.rect(screen, RED, obs)
+
+def display_score():
+    text = font.render(f"Score: {score}", True, BLACK)
+    screen.blit(text, (10, 10))
+
+def spawn_obstacle():
+    lane = random.choice(lanes)
+    rect = pygame.Rect(lane - obstacle_width // 2, -obstacle_height, obstacle_width, obstacle_height)
+    obstacles.append(rect)
+
+def move_obstacles():
+    global score, obstacle_speed
+    for obs in obstacles[:]:
+        obs.y += obstacle_speed
+        if obs.y > HEIGHT:
+            obstacles.remove(obs)
+            score += 1
+
+def check_collision(player_rect):
+    for obs in obstacles:
+        if player_rect.colliderect(obs):
+            return True
+    return False
+
+def reset_game():
+    global obstacles, score, obstacle_speed, current_lane, player_y
+    obstacles = []
+    score = 0
+    obstacle_speed = 5
+    current_lane = 1
+    player_y = HEIGHT - player_height - 10
+
+def draw_game_over():
+    text = font.render("GAME OVER! Press R to Restart", True, RED)
+    screen.blit(text, (WIDTH // 2 - 200, HEIGHT // 2))
+
+# Main loop
+running = True
+
+while running:
+    clock.tick(FPS)
+    screen.fill(WHITE)
+
+    # Events
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        if event.type == pygame.KEYDOWN:
+            if not game_over:
+                if event.key == pygame.K_LEFT:
+                    current_lane = max(0, current_lane - 1)
+                if event.key == pygame.K_RIGHT:
+                    current_lane = min(2, current_lane + 1)
+                if event.key == pygame.K_SPACE and not is_jumping:
+                    is_jumping = True
+                    y_velocity = -jump_velocity
+            else:
+                if event.key == pygame.K_r:
+                    game_over = False
+                    reset_game()
+
+    if not game_over:
+        # Player movement
+        player_x = lanes[current_lane] - player_width // 2
+
+        # Jump logic
+        if is_jumping:
+            player_y += y_velocity
+            y_velocity += gravity
+            if player_y >= HEIGHT - player_height - 10:
+                player_y = HEIGHT - player_height - 10
+                is_jumping = False
+
+        # Spawn obstacles
+        spawn_timer += 1
+        if spawn_timer > 40:
+            spawn_obstacle()
+            spawn_timer = 0
+
+        # Move obstacles
+        move_obstacles()
+
+        # Increase difficulty
+        if score % 10 == 0 and score != 0:
+            obstacle_speed += 0.001
+
+        # Player rect
+        player_rect = pygame.Rect(player_x, player_y, player_width, player_height)
+
+        # Collision check
+        if check_collision(player_rect):
+            game_over = True
+
+        # Draw player
+        draw_player(player_x, player_y)
+
+        # Draw obstacles
+        for obs in obstacles:
+            draw_obstacle(obs)
+
+        # Draw score
+        display_score()
+
+    else:
+        draw_game_over()
+
+    pygame.display.update()
+
+pygame.quit()
+sys.exit()
