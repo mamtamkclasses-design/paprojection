@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GTA Style Car Game</title>
+
+<style>
+body { margin:0; overflow:hidden; background:black; }
+canvas { display:block; }
+
+#ui {
+ position:absolute;
+ top:10px; left:10px;
+ color:white;
+ font-family:Arial;
+}
+
+#minimap {
+ position:absolute;
+ right:10px;
+ bottom:10px;
+ width:150px;
+ height:150px;
+ border:2px solid white;
+ background:black;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+Speed: <span id="speed">0</span><br>
+Wanted: <span id="wanted">0</span>
+</div>
+
+<canvas id="game"></canvas>
+<canvas id="minimap"></canvas>
+
+<script>
+// ================= SETUP =================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const mini = document.getElementById("minimap");
+const mctx = mini.getContext("2d");
+
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+// ================= WORLD =================
+const world = { w:8000, h:8000 };
+
+// ================= CAMERA =================
+let cam = { x:0, y:0 };
+
+// ================= PLAYER =================
+let car = {
+ x:4000,
+ y:4000,
+ angle:0,
+ speed:0,
+ drift:0,
+ max:10
+};
+
+// ================= GAME =================
+let keys={};
+let traffic=[];
+let police=[];
+let particles=[];
+let wanted=0;
+
+// ================= INPUT =================
+onkeydown=e=>keys[e.key]=true;
+onkeyup=e=>keys[e.key]=false;
+
+// ================= SPAWN =================
+function spawnTraffic(){
+ for(let i=0;i<40;i++){
+  traffic.push({
+    x:Math.random()*world.w,
+    y:Math.random()*world.h,
+    angle:Math.random()*6,
+    speed:2+Math.random()*2
+  });
+ }
+}
+
+function spawnPolice(){
+ police.push({
+  x:Math.random()*world.w,
+  y:Math.random()*world.h,
+  angle:0,
+  speed:4
+ });
+}
+
+spawnTraffic();
+
+// ================= UPDATE =================
+function update(){
+
+ // acceleration
+ if(keys["ArrowUp"]) car.speed+=0.2;
+ if(keys["ArrowDown"]) car.speed-=0.2;
+
+ car.speed*=0.98;
+ car.speed=Math.max(-car.max,Math.min(car.max,car.speed));
+
+ // drift system
+ if(keys["Shift"]) car.drift+=0.05;
+ else car.drift*=0.9;
+
+ // turning
+ if(keys["ArrowLeft"]) car.angle-=0.05*(1+car.drift);
+ if(keys["ArrowRight"]) car.angle+=0.05*(1+car.drift);
+
+ // move
+ car.x+=Math.sin(car.angle)*car.speed;
+ car.y-=Math.cos(car.angle)*car.speed;
+
+ // camera smooth follow
+ cam.x += (car.x-canvas.width/2 - cam.x)*0.1;
+ cam.y += (car.y-canvas.height/2 - cam.y)*0.1;
+
+ // traffic
+ traffic.forEach(t=>{
+  t.x+=Math.sin(t.angle)*t.speed;
+  t.y-=Math.cos(t.angle)*t.speed;
+
+  if(Math.random()<0.02) t.angle+=Math.random()-0.5;
+
+  // collision
+  let dx=car.x-t.x;
+  let dy=car.y-t.y;
+  if(Math.hypot(dx,dy)<40){
+    wanted++;
+    car.speed*=-0.5;
+    spawnPolice();
+
+    for(let i=0;i<15;i++){
+      particles.push({
+        x:car.x,y:car.y,
+        vx:(Math.random()-0.5)*6,
+        vy:(Math.random()-0.5)*6,
+        life:1
+      });
+    }
+  }
+ });
+
+ // police AI
+ police.forEach(p=>{
+  let dx=car.x-p.x;
+  let dy=car.y-p.y;
+  let angle=Math.atan2(dx,-dy);
+
+  p.angle += (angle - p.angle)*0.05;
+  p.x+=Math.sin(p.angle)*p.speed;
+  p.y-=Math.cos(p.angle)*p.speed;
+ });
+
+ // particles
+ particles.forEach((p,i)=>{
+  p.x+=p.vx;
+  p.y+=p.vy;
+  p.life-=0.03;
+  if(p.life<=0) particles.splice(i,1);
+ });
+
+ // UI
+ document.getElementById("speed").innerText=car.speed.toFixed(1);
+ document.getElementById("wanted").innerText=wanted;
+}
+
+// ================= DRAW CITY =================
+function drawCity(){
+
+ ctx.fillStyle="#1e1e1e";
+ ctx.fillRect(-cam.x,-cam.y,world.w,world.h);
+
+ // roads
+ ctx.strokeStyle="#555";
+ ctx.lineWidth=30;
+
+ for(let i=0;i<world.w;i+=400){
+  ctx.beginPath();
+  ctx.moveTo(i-cam.x,-cam.y);
+  ctx.lineTo(i-cam.x,world.h-cam.y);
+  ctx.stroke();
+ }
+
+ for(let j=0;j<world.h;j+=400){
+  ctx.beginPath();
+  ctx.moveTo(-cam.x,j-cam.y);
+  ctx.lineTo(world.w-cam.x,j-cam.y);
+  ctx.stroke();
+ }
+
+ // buildings
+ for(let i=0;i<300;i++){
+  let x=(i*157)%world.w;
+  let y=(i*311)%world.h;
+  ctx.fillStyle="#2c3e50";
+  ctx.fillRect(x-cam.x,y-cam.y,80,80);
+ }
+}
+
+// ================= DRAW CAR =================
+function drawCar(x,y,a,color){
+ ctx.save();
+ ctx.translate(x-cam.x,y-cam.y);
+ ctx.rotate(a);
+
+ ctx.fillStyle=color;
+ ctx.fillRect(-15,-30,30,60);
+
+ // headlights
+ ctx.fillStyle="yellow";
+ ctx.fillRect(-10,-35,5,10);
+ ctx.fillRect(5,-35,5,10);
+
+ ctx.restore();
+}
+
+// ================= DRAW =================
+function draw(){
+
+ drawCity();
+
+ traffic.forEach(t=>drawCar(t.x,t.y,t.angle,"red"));
+ police.forEach(p=>drawCar(p.x,p.y,p.angle,"blue"));
+
+ drawCar(car.x,car.y,car.angle,"cyan");
+
+ // particles
+ particles.forEach(p=>{
+  ctx.fillStyle="orange";
+  ctx.fillRect(p.x-cam.x,p.y-cam.y,3,3);
+ });
+
+ // night
+ let n=(Math.sin(Date.now()*0.0003)+1)/2;
+ ctx.fillStyle="rgba(0,0,50,"+n*0.6+")";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ drawMiniMap();
+}
+
+// ================= MINIMAP =================
+function drawMiniMap(){
+ mctx.clearRect(0,0,150,150);
+
+ let scale=150/world.w;
+
+ // player
+ mctx.fillStyle="cyan";
+ mctx.fillRect(car.x*scale,car.y*scale,4,4);
+
+ // police
+ mctx.fillStyle="blue";
+ police.forEach(p=>{
+  mctx.fillRect(p.x*scale,p.y*scale,3,3);
+ });
+}
+
+// ================= LOOP =================
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
+
+</script>
+
+</body>
+</html>
