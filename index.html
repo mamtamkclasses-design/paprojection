@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Furfuri Nagar Runner HD</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{overflow:hidden;background:#000;font-family:sans-serif;}
+canvas{display:block;}
+#score{position:absolute;top:10px;left:15px;color:#fff;font-size:22px;font-weight:bold;}
+#gameOver{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#ff4444;font-size:32px;display:none;text-align:center;}
+</style>
+</head>
+<body>
+
+<div id="score">Score: 0</div>
+<div id="gameOver">GAME OVER<br>Press R</div>
+<canvas id="c"></canvas>
+
+<script>
+// ================= CANVAS =================
+const canvas=document.getElementById("c");
+const ctx=canvas.getContext("2d");
+canvas.width=innerWidth;
+canvas.height=innerHeight;
+
+// ================= LANES =================
+const lanes=[canvas.width*0.3,canvas.width*0.5,canvas.width*0.7];
+let lane=1;
+
+// ================= PLAYER =================
+let player={
+x:lanes[lane],
+y:canvas.height-150,
+w:70,
+h:100,
+vy:0,
+jump:false,
+frame:0
+};
+
+// ================= GAME =================
+let obs=[];
+let coins=[];
+let speed=7;
+let score=0;
+let over=false;
+
+// ================= BACKGROUND SCROLL =================
+let skyOffset=0;
+let mountainOffset=0;
+let villageOffset=0;
+let cloudOffset=0;
+
+// ================= CONTROLS =================
+document.addEventListener("keydown",e=>{
+if(!over){
+if(e.key==="ArrowLeft") lane=Math.max(0,lane-1);
+if(e.key==="ArrowRight") lane=Math.min(2,lane+1);
+if(e.key===" " && !player.jump){
+player.vy=-20;
+player.jump=true;
+}
+}else{
+if(e.key.toLowerCase()==="r") reset();
+}
+});
+
+// ================= SKY =================
+function drawSky(){
+let g=ctx.createLinearGradient(0,0,0,canvas.height);
+g.addColorStop(0,"#4facfe");
+g.addColorStop(1,"#00f2fe");
+ctx.fillStyle=g;
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+// sun
+ctx.fillStyle="yellow";
+ctx.beginPath();
+ctx.arc(canvas.width-100,100,50,0,Math.PI*2);
+ctx.fill();
+}
+
+// ================= CLOUDS =================
+function drawClouds(){
+ctx.fillStyle="white";
+for(let i=0;i<5;i++){
+let x=(i*300+cloudOffset)% (canvas.width+300);
+let y=80+i*30;
+ctx.beginPath();
+ctx.arc(x,y,20,0,Math.PI*2);
+ctx.arc(x+25,y,25,0,Math.PI*2);
+ctx.arc(x+50,y,20,0,Math.PI*2);
+ctx.fill();
+}
+}
+
+// ================= MOUNTAINS =================
+function drawMountains(){
+ctx.fillStyle="#2e8b57";
+for(let i=-200;i<canvas.width+200;i+=200){
+let x=i+mountainOffset;
+ctx.beginPath();
+ctx.moveTo(x,canvas.height-120);
+ctx.lineTo(x+100,canvas.height-350);
+ctx.lineTo(x+200,canvas.height-120);
+ctx.fill();
+}
+}
+
+// ================= VILLAGE =================
+function drawVillage(){
+for(let i=-200;i<canvas.width+200;i+=180){
+let x=i+villageOffset;
+
+// house
+ctx.fillStyle="#c68642";
+ctx.fillRect(x,canvas.height-180,90,70);
+
+// roof
+ctx.fillStyle="#8b4513";
+ctx.beginPath();
+ctx.moveTo(x,canvas.height-180);
+ctx.lineTo(x+45,canvas.height-230);
+ctx.lineTo(x+90,canvas.height-180);
+ctx.fill();
+
+// door
+ctx.fillStyle="#654321";
+ctx.fillRect(x+30,canvas.height-140,20,30);
+
+// window
+ctx.fillStyle="#add8e6";
+ctx.fillRect(x+10,canvas.height-160,20,20);
+ctx.fillRect(x+60,canvas.height-160,20,20);
+}
+}
+
+// ================= ROAD =================
+function drawRoad(){
+ctx.fillStyle="#333";
+ctx.fillRect(0,canvas.height-110,canvas.width,110);
+
+// gradient shine
+let g=ctx.createLinearGradient(0,canvas.height-110,0,canvas.height);
+g.addColorStop(0,"rgba(255,255,255,0.1)");
+g.addColorStop(1,"rgba(0,0,0,0.5)");
+ctx.fillStyle=g;
+ctx.fillRect(0,canvas.height-110,canvas.width,110);
+
+// lane lines
+ctx.strokeStyle="#fff";
+ctx.setLineDash([25,15]);
+ctx.lineWidth=4;
+lanes.forEach(l=>{
+ctx.beginPath();
+ctx.moveTo(l,canvas.height);
+ctx.lineTo(l,canvas.height-110);
+ctx.stroke();
+});
+ctx.setLineDash([]);
+}
+
+// ================= SHINCHAN =================
+function drawShinchan(){
+let x=player.x-35;
+let y=player.y;
+
+// body animation
+let bounce=Math.sin(player.frame*0.3)*3;
+
+// shirt
+ctx.fillStyle="#ff0000";
+ctx.fillRect(x,y+bounce,70,50);
+
+// shorts
+ctx.fillStyle="#ffff00";
+ctx.fillRect(x,y+50+bounce,70,50);
+
+// head
+ctx.fillStyle="#f5cba7";
+ctx.beginPath();
+ctx.arc(x+35,y-10+bounce,28,0,Math.PI*2);
+ctx.fill();
+
+// eyes
+ctx.fillStyle="#000";
+ctx.fillRect(x+20,y-15+bounce,10,5);
+ctx.fillRect(x+40,y-15+bounce,10,5);
+
+// smile
+ctx.beginPath();
+ctx.arc(x+35,y+5+bounce,12,0,Math.PI);
+ctx.stroke();
+
+player.frame++;
+}
+
+// ================= KIRMADA =================
+function drawKirmada(o){
+let x=o.x-35;
+let y=o.y;
+
+// body gradient
+let g=ctx.createLinearGradient(x,y,x,y+100);
+g.addColorStop(0,"#ff0000");
+g.addColorStop(1,"#550000");
+ctx.fillStyle=g;
+ctx.fillRect(x,y,70,90);
+
+// horns
+ctx.fillStyle="#000";
+ctx.beginPath();
+ctx.moveTo(x+10,y);
+ctx.lineTo(x+20,y-25);
+ctx.lineTo(x+30,y);
+ctx.fill();
+
+ctx.beginPath();
+ctx.moveTo(x+60,y);
+ctx.lineTo(x+50,y-25);
+ctx.lineTo(x+40,y);
+ctx.fill();
+
+// glowing eyes
+ctx.fillStyle="yellow";
+ctx.fillRect(x+20,y+25,10,10);
+ctx.fillRect(x+40,y+25,10,10);
+}
+
+// ================= COINS =================
+function drawCoins(){
+ctx.fillStyle="gold";
+coins.forEach(c=>{
+ctx.beginPath();
+ctx.arc(c.x,c.y,10,0,Math.PI*2);
+ctx.fill();
+});
+}
+
+// ================= SPAWN =================
+function spawnObstacle(){
+let l=lanes[Math.floor(Math.random()*3)];
+obs.push({x:l,y:-120});
+}
+
+function spawnCoin(){
+let l=lanes[Math.floor(Math.random()*3)];
+coins.push({x:l,y:-120});
+}
+
+// ================= UPDATE =================
+function update(){
+if(over) return;
+
+player.x=lanes[lane];
+
+// gravity
+player.y+=player.vy;
+player.vy+=1;
+
+if(player.y>=canvas.height-150){
+player.y=canvas.height-150;
+player.jump=false;
+}
+
+// obstacles
+obs.forEach((o,i)=>{
+o.y+=speed;
+
+if(o.y>canvas.height){
+obs.splice(i,1);
+score++;
+}
+
+if(
+player.x-35<o.x+35 &&
+player.x+35>o.x-35 &&
+player.y<o.y+90 &&
+player.y+100>o.y
+){
+end();
+}
+});
+
+// coins
+coins.forEach((c,i)=>{
+c.y+=speed;
+
+if(
+player.x-30<c.x+10 &&
+player.x+30>c.x-10 &&
+player.y<c.y+10 &&
+player.y+100>c.y
+){
+coins.splice(i,1);
+score+=5;
+}
+});
+
+// difficulty
+if(score%10===0 && score!==0){
+speed+=0.02;
+}
+
+// parallax
+cloudOffset-=1;
+mountainOffset-=speed*0.3;
+villageOffset-=speed*0.6;
+}
+
+// ================= DRAW =================
+function draw(){
+drawSky();
+drawClouds();
+drawMountains();
+drawVillage();
+drawRoad();
+
+drawShinchan();
+
+obs.forEach(o=>drawKirmada(o));
+drawCoins();
+
+document.getElementById("score").innerText="Score: "+score;
+}
+
+// ================= LOOP =================
+function loop(){
+update();
+draw();
+requestAnimationFrame(loop);
+}
+
+// ================= TIMERS =================
+setInterval(()=>{if(!over) spawnObstacle();},800);
+setInterval(()=>{if(!over) spawnCoin();},1200);
+
+// ================= END =================
+function end(){
+over=true;
+document.getElementById("gameOver").style.display="block";
+}
+
+// ================= RESET =================
+function reset(){
+obs=[];
+coins=[];
+score=0;
+speed=7;
+lane=1;
+player.y=canvas.height-150;
+player.vy=0;
+over=false;
+document.getElementById("gameOver").style.display="none";
+}
+
+// ================= START =================
+loop();
+
+</script>
+
+</body>
+</html>
