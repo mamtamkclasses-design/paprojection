@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Runner Game</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: #87CEEB;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #score {
+      position: absolute;
+      top: 10px;
+      left: 15px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    #gameOver {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 32px;
+      color: red;
+      display: none;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="score">Score: 0</div>
+<div id="gameOver">GAME OVER<br>Press R to Restart</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const lanes = [
+  canvas.width * 0.3,
+  canvas.width * 0.5,
+  canvas.width * 0.7
+];
+
+let currentLane = 1;
+
+const player = {
+  w: 50,
+  h: 80,
+  x: lanes[currentLane] - 25,
+  y: canvas.height - 120,
+  vy: 0,
+  jumping: false
+};
+
+let obstacles = [];
+let speed = 6;
+let score = 0;
+let gameOver = false;
+
+document.addEventListener("keydown", e => {
+  if (!gameOver) {
+    if (e.key === "ArrowLeft") currentLane = Math.max(0, currentLane - 1);
+    if (e.key === "ArrowRight") currentLane = Math.min(2, currentLane + 1);
+
+    if (e.key === " " && !player.jumping) {
+      player.vy = -16;
+      player.jumping = true;
+    }
+  } else {
+    if (e.key.toLowerCase() === "r") resetGame();
+  }
+});
+
+function drawBackground() {
+  ctx.fillStyle = "#87CEEB";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#556B2F";
+  for (let i = 0; i < canvas.width; i += 180) {
+    ctx.beginPath();
+    ctx.moveTo(i, canvas.height - 120);
+    ctx.lineTo(i + 90, canvas.height - 300);
+    ctx.lineTo(i + 180, canvas.height - 120);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "#333";
+  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+
+  ctx.strokeStyle = "white";
+  ctx.setLineDash([15, 10]);
+  ctx.lineWidth = 3;
+
+  lanes.forEach(lane => {
+    ctx.beginPath();
+    ctx.moveTo(lane, canvas.height);
+    ctx.lineTo(lane, canvas.height - 100);
+    ctx.stroke();
+  });
+
+  ctx.setLineDash([]);
+}
+
+function drawPlayer() {
+  let x = player.x;
+  let y = player.y;
+
+  ctx.fillStyle = "#1E90FF";
+  ctx.fillRect(x, y, player.w, player.h);
+
+  ctx.fillStyle = "#FFD700";
+  ctx.beginPath();
+  ctx.arc(x + 25, y - 15, 15, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(x + 20, y - 18, 2, 0, Math.PI * 2);
+  ctx.arc(x + 30, y - 18, 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawObstacles() {
+  ctx.fillStyle = "#FF0000";
+  obstacles.forEach(o => {
+    ctx.fillRect(o.x, o.y, o.w, o.h);
+  });
+}
+
+function spawnObstacle() {
+  const lane = lanes[Math.floor(Math.random() * 3)];
+  obstacles.push({
+    x: lane - 25,
+    y: -100,
+    w: 50,
+    h: 80
+  });
+}
+
+function update() {
+  if (gameOver) return;
+
+  player.x = lanes[currentLane] - 25;
+
+  player.y += player.vy;
+  player.vy += 1;
+
+  if (player.y >= canvas.height - 120) {
+    player.y = canvas.height - 120;
+    player.jumping = false;
+  }
+
+  obstacles.forEach((o, i) => {
+    o.y += speed;
+
+    if (o.y > canvas.height) {
+      obstacles.splice(i, 1);
+      score++;
+    }
+
+    if (
+      player.x < o.x + o.w &&
+      player.x + player.w > o.x &&
+      player.y < o.y + o.h &&
+      player.y + player.h > o.y
+    ) {
+      endGame();
+    }
+  });
+
+  if (score % 10 === 0 && score !== 0) {
+    speed += 0.01;
+  }
+}
+
+function draw() {
+  drawBackground();
+  drawPlayer();
+  drawObstacles();
+
+  document.getElementById("score").innerText = "Score: " + score;
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+setInterval(() => {
+  if (!gameOver) spawnObstacle();
+}, 900);
+
+function endGame() {
+  gameOver = true;
+  document.getElementById("gameOver").style.display = "block";
+}
+
+function resetGame() {
+  obstacles = [];
+  score = 0;
+  speed = 6;
+  currentLane = 1;
+  player.y = canvas.height - 120;
+  player.vy = 0;
+  gameOver = false;
+  document.getElementById("gameOver").style.display = "none";
+}
+
+loop();
+</script>
+
+</body>
+</html>
