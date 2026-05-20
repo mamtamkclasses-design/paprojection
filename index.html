@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class 10 NCERT Chemistry Lab Simulator</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --accent-blue: #38bdf8;
+            --neon-green: #4ade80;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { 
+            margin: 0; 
+            font-size: 26px; 
+            letter-spacing: 0.5px; 
+            background: linear-gradient(135deg, #38bdf8, #818cf8); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent; 
+        }
+        p.tagline { margin: 5px 0 25px 0; color: var(--text-muted); font-size: 14px; }
+
+        .app-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr 360px;
+            gap: 20px;
+            width: 100%;
+            max-width: 1300px;
+            height: 620px;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .scroll-list { overflow-y: auto; flex-grow: 1; margin-bottom: 15px; padding-right: 5px; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+
+        .section-label {
+            font-size: 11px; 
+            color: var(--accent-blue); 
+            font-weight: bold; 
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .chem-node {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+        .chem-node:hover { border-color: var(--accent-blue); background: #1e293b; }
+        .chem-node.active-r1 { border-color: #f43f5e; background: rgba(244, 63, 94, 0.1); }
+        .chem-node.active-r2 { border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+
+        /* Laboratory Table Layout */
+        .lab-table {
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .bench-display {
+            flex-grow: 1;
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-end;
+            padding-bottom: 40px;
+            position: relative;
+        }
+
+        .beaker-wrapper { text-align: center; position: relative; }
+        .beaker-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 12px; text-transform: uppercase;}
+        
+        canvas {
+            background: transparent;
+            filter: drop-shadow(0px 8px 12px rgba(0,0,0,0.5));
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .pouring-left { transform: translate(100px, -80px) rotate(45deg); }
+        .pouring-right { transform: translate(-100px, -80px) rotate(-45deg); }
+
+        .action-deck { display: flex; gap: 15px; }
+        .btn-prime {
+            flex: 1; padding: 14px; border: none; border-radius: 8px;
+            font-weight: bold; font-size: 14px; cursor: pointer; letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        #pour-btn { background: #2563eb; color: white; }
+        #pour-btn:hover:not(:disabled) { background: #3b82f6; }
+        #clear-btn { background: #334155; color: #cbd5e1; }
+        #clear-btn:hover { background: #475569; }
+        #pour-btn:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+
+        /* Diagnostics & Panels */
+        .concept-title { color: var(--accent-blue); margin: 0 0 12px 0; font-size: 18px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;}
+        .data-card { background: #0f172a; border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; line-height: 1.5; }
+        .formula { font-family: 'Consolas', monospace; color: var(--neon-green); font-size: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>Class 10 NCERT Chemistry Lab Simulator</h1>
+    <p class="tagline">Interactive Visualizer for Types of Chemical Reactions</p>
+
+    <div class="app-layout">
+        <!-- Reactants Input Panel -->
+        <div class="glass-panel">
+            <h3 style="margin-top:0; color: var(--text-main);">Chemical Rack</h3>
+            
+            <span class="section-label">BEAKER A (REAGENT)</span>
+            <div class="scroll-list" id="list-a"></div>
+
+            <span class="section-label">BEAKER B (SALT / SOLUTION)</span>
+            <div class="scroll-list" id="list-b"></div>
+        </div>
+
+        <!-- Dynamic Studio Workbench -->
+        <div class="glass-panel lab-table">
+            <div class="bench-display">
+                <div class="beaker-wrapper">
+                    <canvas id="canvasA" width="110" height="140"></canvas>
+                    <div class="beaker-label" id="lbl-a">Beaker A</div>
+                </div>
+                <div class="beaker-wrapper">
+                    <canvas id="canvasMain" width="150" height="180"></canvas>
+                    <div class="beaker-label" style="color:var(--accent-blue);">Reaction Vessel</div>
+                </div>
+                <div class="beaker-wrapper">
+                    <canvas id="canvasB" width="110" height="140"></canvas>
+                    <div class="beaker-label" id="lbl-b">Beaker B</div>
+                </div>
+            </div>
+            
+            <div class="action-deck">
+                <button class="btn-prime" id="pour-btn" disabled onclick="executeSimulation()">Mix Reactants</button>
+                <button class="btn-prime" id="clear-btn" onclick="resetStudio()">Reset Bench</button>
+            </div>
+        </div>
+
+        <!-- Advanced Conceptual Explainer -->
+        <div class="glass-panel">
+            <h3 style="margin-top:0; color: var(--text-main);">Reaction Diagnostics</h3>
+            <div class="scroll-list" id="diagnostics-panel" style="margin:0;">
+                <div style="color: var(--text-muted); text-align:center; margin-top:40px; font-size: 14px;">
+                    Select chemicals from the rack and mix them to observe the NCERT chemical reaction properties.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Smooth, realistic color mapping matching actual chemistry states
+        const chemicalsA = {
+            "HCl": { color: "rgba(220, 235, 255, 0.35)", type: "liquid" },
+            "NaOH": { color: "rgba(240, 245, 255, 0.3)", type: "liquid" },
+            "BaCl2": { color: "rgba(255, 255, 255, 0.25)", type: "liquid" },
+            "Dil. H2SO4": { color: "rgba(225, 230, 240, 0.35)", type: "liquid" }
+        };
+
+        const chemicalsB = {
+            "Na2SO4": { color: "rgba(255, 255, 255, 0.25)", type: "liquid" },
+            "Phenolphthalein": { color: "rgba(255, 255, 255, 0.15)", type: "liquid" },
+            "Na2CO3": { color: "rgba(254, 254, 254, 0.25)", type: "liquid" },
+            "Zn Granules": { color: "rgba(148, 163, 184, 0.8)", type: "liquid" }
+        };
+
+        // Class 10 NCERT core mapped transformations
+        const reactionEngine = [
+            { 
+                a: "BaCl2", b: "Na2SO4", 
+                targetColor: "rgba(255, 255, 255, 0.4)", state: "ppt", pptColor: "#ffffff", gas: false, 
+                type: "Double Displacement Reaction",
+                obs: "An insoluble white precipitate of Barium Sulfate (BaSO₄) forms instantly.", 
+                eq: "BaCl₂ (aq) + Na₂SO₄ (aq) → BaSO₄ (s)↓ + 2NaCl (aq)", 
+                notes: "Classic NCERT Activity 1.10. Any reaction that produces a precipitate can also be called a precipitation reaction." 
+            },
+            { 
+                a: "NaOH", b: "Phenolphthalein", 
+                targetColor: "rgba(236, 72, 153, 0.8)", state: "solution", gas: false, 
+                type: "Acid-Base / Indicator Test",
+                obs: "The colorless solution turns into a sharp, brilliant pink color.", 
+                eq: "NaOH + Phenolphthalein → Pink Complex", 
+                notes: "Chapter 2 concept. Phenolphthalein is a synthetic indicator that remains colorless in acidic or neutral mediums but turns pink in basic solutions." 
+            },
+            { 
+                a: "HCl", b: "Na2CO3", 
+                targetColor: "rgba(240, 245, 255, 0.3)", state: "solution", gas: true, 
+                type: "Metal Carbonate + Acid",
+                obs: "Brisk effervescence as Carbon Dioxide (CO₂) gas bubbles out rapidly.", 
+                eq: "Na₂CO₃ (s) + 2HCl (aq) → 2NaCl (aq) + H₂O (l) + CO₂ (g)↑", 
+                notes: "NCERT Activity 2.5. Passing this escaping gas through lime water [Ca(OH)₂] turns it milky due to the formation of CaCO₃." 
+            },
+            { 
+                a: "Dil. H2SO4", b: "Zn Granules", 
+                targetColor: "rgba(210, 220, 240, 0.4)", state: "solution", gas: true, 
+                type: "Displacement Reaction",
+                obs: "Evolution of Hydrogen gas bubbles around the zinc metal scraps.", 
+                eq: "Zn (s) + H₂SO₄ (aq) → ZnSO₄ (aq) + H₂ (g)↑", 
+                notes: "NCERT Activity 1.3 / 2.1. Hydrogen gas burns with a characteristic 'pop' sound when a burning candle is brought near it." 
+            },
+            {
+                a: "HCl", b: "NaOH",
+                targetColor: "rgba(240, 245, 255, 0.25)", state: "solution", gas: false,
+                type: "Neutralization Reaction",
+                obs: "Exothermic mixing with no visual color shift. Acid and Base neutralize each other.",
+                eq: "NaOH (aq) + HCl (aq) → NaCl (aq) + H₂O (l) + Heat",
+                notes: "Chapter 2 Core. The reaction between an acid and a base to give a salt and water is known as a neutralization reaction."
+            }
+        ];
+
+        let selectedA = null, selectedB = null;
+        let animationFrameId = null;
+
+        function initRack() {
+            const containerA = document.getElementById('list-a');
+            const containerB = document.getElementById('list-b');
+
+            Object.keys(chemicalsA).forEach(key => {
+                const div = document.createElement('div');
+                div.className = 'chem-node';
+                div.innerText = key;
+                div.onclick = () => {
+                    document.querySelectorAll('#list-a .chem-node').forEach(n => n.classList.remove('active-r1'));
+                    div.classList.add('active-r1');
+                    selectedA = key;
+                    document.getElementById('lbl-a').innerText = key;
+                    drawBeaker('canvasA', chemicalsA[key].color);
+                    checkReadiness();
+                };
+                containerA.appendChild(div);
+            });
+
+            Object.keys(chemicalsB).forEach(key => {
+                const div = document.createElement('div');
+                div.className = 'chem-node';
+                div.innerText = key;
+                div.onclick = () => {
+                    document.querySelectorAll('#list-b .chem-node').forEach(n => n.classList.remove('active-r2'));
+                    div.classList.add('active-r2');
+                    selectedB = key;
+                    document.getElementById('lbl-b').innerText = key;
+                    drawBeaker('canvasB', chemicalsB[key].color);
+                    checkReadiness();
+                };
+                containerB.appendChild(div);
+            });
+
+            drawBeaker('canvasA', 'transparent');
+            drawBeaker('canvasB', 'transparent');
+            drawBeaker('canvasMain', 'transparent', true);
+        }
+
+        function checkReadiness() {
+            document.getElementById('pour-btn').disabled = !(selectedA && selectedB);
+        }
+
+        // Render function with clear glass style lines and premium fluid visuals
+        function drawBeaker(canvasId, liquidColor, isMain = false, fillLevel = 0.4, pptColor = null) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Fluid Layering
+            if (liquidColor !== 'transparent' && fillLevel > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(12, h - 12);
+                ctx.lineTo(w - 12, h - 12);
+                ctx.lineTo(w - 12, h - (h * fillLevel));
+                ctx.lineTo(12, h - (h * fillLevel));
+                ctx.closePath();
+                ctx.clip();
+
+                let grad = ctx.createLinearGradient(0, 0, w, 0);
+                grad.addColorStop(0, liquidColor);
+                grad.addColorStop(0.25, 'rgba(255,255,255,0.25)');
+                grad.addColorStop(0.6, liquidColor);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+
+                if (pptColor) {
+                    let pptGrad = ctx.createLinearGradient(0, h-30, 0, h-5);
+                    pptGrad.addColorStop(0, 'rgba(255,255,255,0.1)');
+                    pptGrad.addColorStop(0.5, pptColor);
+                    ctx.fillStyle = pptGrad;
+                    ctx.fillRect(12, h - 35, w - 24, 25);
+                }
+                ctx.restore();
+            }
+
+            // High Glass Outline Frame 
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(8, 12);
+            ctx.lineTo(12, 12);
+            ctx.lineTo(12, h - 10);
+            ctx.lineTo(w - 12, h - 10);
+            ctx.lineTo(w - 12, 12);
+            ctx.lineTo(w - 8, 12);
+            ctx.stroke();
+
+            // Minimalist measurement markers
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            for (let i = 35; i < h - 20; i += 25) {
+                ctx.beginPath(); ctx.moveTo(w - 20, i); ctx.lineTo(w - 12, i); ctx.stroke();
+            }
+        }
+
+        function executeSimulation() {
+            const match = reactionEngine.find(r => r.a === selectedA && r.b === selectedB);
+            const cA = document.getElementById('canvasA');
+            const cB = document.getElementById('canvasB');
+
+            document.getElementById('pour-btn').disabled = true;
+
+            cA.classList.add('pouring-left');
+            setTimeout(() => {
+                cB.classList.add('pouring-right');
+                cA.classList.remove('pouring-left');
+                drawBeaker('canvasA', 'transparent'); 
+
+                setTimeout(() => {
+                    cB.classList.remove('pouring-right');
+                    drawBeaker('canvasB', 'transparent'); 
+                    triggerSynthesis(match);
+                }, 900);
+            }, 900);
+        }
+
+        function triggerSynthesis(match) {
+            let frame = 0;
+            const maxFrames = 50;
+            
+            const endColor = match ? match.targetColor : "rgba(225, 230, 240, 0.25)";
+            const pptColor = (match && match.state === 'ppt') ? match.pptColor : null;
+
+            let gasBubbles = [];
+            if (match && match.gas) {
+                for(let i=0; i<25; i++) {
+                    gasBubbles.push({
+                        x: Math.random() * 100 + 25,
+                        y: Math.random() * 60 + 100,
+                        r: Math.random() * 2.5 + 1.5,
+                        speed: Math.random() * 2 + 1.5
+                    });
+                }
+            }
+
+            function animateMix() {
+                frame++;
+                let progress = frame / maxFrames;
+                let currentFill = 0.25 + (progress * 0.35); 
+                
+                drawBeaker('canvasMain', endColor, true, currentFill, progress > 0.6 ? pptColor : null);
+
+                // Gas Rendering Physics Engine Overlay
+                if (match && match.gas && frame < 110) {
+                    const ctx = document.getElementById('canvasMain').getContext('2d');
+                    ctx.fillStyle = "rgba(240, 248, 255, 0.55)";
+                    gasBubbles.forEach(p => {
+                        p.y -= p.speed;
+                        if(p.y < 50) p.y = 150; 
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                }
+
+                if (frame < maxFrames || (match && match.gas && frame < 100)) {
+                    animationFrameId = requestAnimationFrame(animateMix);
+                } else {
+                    displayDataLogs(match);
+                }
+            }
+            animateMix();
+        }
+
+        function displayDataLogs(match) {
+            const panel = document.getElementById('diagnostics-panel');
+            if (match) {
+                panel.innerHTML = `
+                    <h4 class="concept-title">${match.type}</h4>
+                    <div class="data-card">
+                        <strong style="color:var(--accent-blue);">Observation:</strong><br>${match.obs}
+                    </div>
+                    <div class="data-card">
+                        <strong style="color:var(--accent-blue);">Balanced Chemical Equation:</strong><br>
+                        <div class="formula" style="margin-top:5px;">${match.eq}</div>
+                    </div>
+                    <div class="data-card" style="border-left: 4px solid var(--neon-green);">
+                        <strong>NCERT Context:</strong><br>
+                        <p style="margin:5px 0 0 0; font-size:13px; color: var(--text-muted);">${match.notes}</p>
+                    </div>
+                `;
+            } else {
+                panel.innerHTML = `
+                    <h4 class="concept-title" style="color:var(--text-muted);">No NCERT Reaction</h4>
+                    <div class="data-card">
+                        Mixing <strong>${selectedA}</strong> and <strong>${selectedB}</strong> does not present an explicit chemical pathway defined under standard Class 10 NCERT foundational exercises.
+                    </div>
+                `;
+            }
+        }
+
+        function resetStudio() {
+            cancelAnimationFrame(animationFrameId);
+            selectedA = null; selectedB = null;
+            document.getElementById('lbl-a').innerText = "Beaker A";
+            document.getElementById('lbl-b').innerText = "Beaker B";
+            document.querySelectorAll('.chem-node').forEach(n => n.classList.remove('active-r1', 'active-r2'));
+            drawBeaker('canvasA', 'transparent');
+            drawBeaker('canvasB', 'transparent');
+            drawBeaker('canvasMain', 'transparent', true);
+            document.getElementById('pour-btn').disabled = true;
+            document.getElementById('diagnostics-panel').innerHTML = `
+                <div style="color: var(--text-muted); text-align:center; margin-top:40px; font-size: 14px;">
+                    Select chemicals from the rack and mix them to observe the NCERT chemical reaction properties.
+                </div>`;
+        }
+
+        window.onload = initRack;
+    </script>
+</body>
+</html>
